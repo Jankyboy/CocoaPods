@@ -56,11 +56,11 @@ group :development do
   gem 'clintegracon'
 
   # Code Quality
-  gem 'inch_by_inch'
+  gem 'inch_by_inch', '>= 1.0.1'
   gem 'rubocop', '0.50.0'
   gem 'simplecov', '< 0.18'
 
-  gem 'danger', '~> 5.3'
+  gem 'danger', '~> 6.0', '>= 6.0.0'
 end
 
 group :debugging do
