@@ -36,8 +36,9 @@ module Pod
 
     # @return [Pathname]
     #
-    def podspec_path(name = 'JSONKit', version = '1.4')
-      Config.instance.sources_manager.master.first.specification_path(name, version)
+    def podspec_path(name = 'JSONKit', version = '1.4', source = nil)
+      source = Config.instance.sources_manager.master.first if source.nil?
+      source.specification_path(name, version)
     end
 
     #-------------------------------------------------------------------------#
@@ -91,7 +92,8 @@ module Pod
 
       describe '#only_subspec' do
         before do
-          podspec = podspec_path('RestKit', '0.22.0')
+          test_repo_source = Config.instance.sources_manager.source_with_name_or_url('test_repo')
+          podspec = podspec_path('RestKit', '0.22.0', test_repo_source)
           @validator = Validator.new(podspec, config.sources_manager.master.map(&:url))
           @validator.quick = true
         end
@@ -106,6 +108,18 @@ module Pod
           @validator.only_subspec = 'RestKit/CoreData'
           @validator.validate
           @validator.send(:subspec_name).should == 'RestKit/CoreData'
+        end
+
+        it 'handles a relative subspec name which starts with the pod name' do
+          @validator.only_subspec = 'RestKitSubspec'
+          @validator.validate
+          @validator.send(:subspec_name).should == 'RestKit/RestKitSubspec'
+        end
+
+        it 'handles an absolute subspec name which starts with the pod name' do
+          @validator.only_subspec = 'RestKit/RestKitSubspec'
+          @validator.validate
+          @validator.send(:subspec_name).should == 'RestKit/RestKitSubspec'
         end
 
         it 'handles a missing subspec name' do
@@ -812,6 +826,35 @@ module Pod
         validator.validate.should == true
       end
 
+      it 'runs xcodebuild with correct arguments when validating with --configuration' do
+        require 'fourflusher'
+        Fourflusher::SimControl.any_instance.stubs(:destination).returns(['-destination', 'id=XXX'])
+        Validator.any_instance.unstub(:xcodebuild)
+        PodTarget.any_instance.stubs(:should_build?).returns(true)
+        Installer::Xcode::PodsProjectGenerator::PodTargetInstaller.any_instance.stubs(:validate_targets_contain_sources) # since we skip downloading
+        validator = Validator.new(podspec_path, config.sources_manager.master.map(&:url))
+        validator.stubs(:check_file_patterns)
+        validator.stubs(:validate_url)
+        validator.configuration = 'Debug'
+        git = Executable.which(:git)
+        Executable.stubs(:which).with('git').returns(git)
+        Executable.stubs(:capture_command).with('git', ['config', '--get', 'remote.origin.url'], :capture => :out).returns(['https://github.com/CocoaPods/Specs.git'])
+        Executable.stubs(:which).with(:xcrun)
+        Executable.stubs(:execute_command).with('find', [validator.validation_dir, '-name', '*.html'], false).returns('')
+        Executable.expects(:execute_command).with { |executable, command, _| executable == 'git' && command.first == 'clone' }.once
+        # Command should '-configuration Debug' instead of '-configuration Release'.
+        command = ['clean', 'build', '-workspace', File.join(validator.validation_dir, 'App.xcworkspace'), '-scheme', 'App', '-configuration', 'Debug']
+        args = %w(CODE_SIGN_IDENTITY=)
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk appletvsimulator) + Fourflusher::SimControl.new.destination('Apple TV 1080p')
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk iphonesimulator) + Fourflusher::SimControl.new.destination('iPhone 4s')
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk watchsimulator) + Fourflusher::SimControl.new.destination('Apple Watch - 38mm')
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        validator.validate.should == true
+      end
+
       it 'runs xcodebuild with correct arguments when validating with --analyze' do
         require 'fourflusher'
         Fourflusher::SimControl.any_instance.stubs(:destination).returns(['-destination', 'id=XXX'])
@@ -830,6 +873,38 @@ module Pod
         Executable.expects(:execute_command).with { |executable, command, _| executable == 'git' && command.first == 'clone' }.once
         # Command should 'analyze' instead of 'build'.
         command = ['clean', 'analyze', '-workspace', File.join(validator.validation_dir, 'App.xcworkspace'), '-scheme', 'App', '-configuration', 'Release']
+        args = %w(CODE_SIGN_IDENTITY=)
+        analyzer_args = %w(CLANG_ANALYZER_OUTPUT=html)
+        analyzer_args += %w(CLANG_ANALYZER_OUTPUT_DIR=analyzer)
+        Executable.expects(:execute_command).with('xcodebuild', command + args + analyzer_args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk appletvsimulator) + Fourflusher::SimControl.new.destination('Apple TV 1080p') + analyzer_args
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk iphonesimulator) + Fourflusher::SimControl.new.destination('iPhone 4s') + analyzer_args
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        args = %w(CODE_SIGN_IDENTITY=- -sdk watchsimulator) + Fourflusher::SimControl.new.destination('Apple Watch - 38mm') + analyzer_args
+        Executable.expects(:execute_command).with('xcodebuild', command + args, true).once.returns('')
+        validator.validate.should == true
+      end
+
+      it 'runs xcodebuild with correct arguments when validating with --analyze and --configuration' do
+        require 'fourflusher'
+        Fourflusher::SimControl.any_instance.stubs(:destination).returns(['-destination', 'id=XXX'])
+        Validator.any_instance.unstub(:xcodebuild)
+        PodTarget.any_instance.stubs(:should_build?).returns(true)
+        Installer::Xcode::PodsProjectGenerator::PodTargetInstaller.any_instance.stubs(:validate_targets_contain_sources) # since we skip downloading
+        validator = Validator.new(podspec_path, config.sources_manager.master.map(&:url))
+        validator.stubs(:check_file_patterns)
+        validator.stubs(:validate_url)
+        validator.analyze = true
+        validator.configuration = 'Debug'
+        git = Executable.which(:git)
+        Executable.stubs(:which).with('git').returns(git)
+        Executable.stubs(:capture_command).with('git', ['config', '--get', 'remote.origin.url'], :capture => :out).returns(['https://github.com/CocoaPods/Specs.git'])
+        Executable.stubs(:which).with(:xcrun)
+        Executable.stubs(:execute_command).with('find', [validator.validation_dir, '-name', '*.html'], false).returns('')
+        Executable.expects(:execute_command).with { |executable, command, _| executable == 'git' && command.first == 'clone' }.once
+        # Command should 'analyze' instead of 'build' and '-configuration Debug' instead of '-configuration Release'.
+        command = ['clean', 'analyze', '-workspace', File.join(validator.validation_dir, 'App.xcworkspace'), '-scheme', 'App', '-configuration', 'Debug']
         args = %w(CODE_SIGN_IDENTITY=)
         analyzer_args = %w(CLANG_ANALYZER_OUTPUT=html)
         analyzer_args += %w(CLANG_ANALYZER_OUTPUT_DIR=analyzer)

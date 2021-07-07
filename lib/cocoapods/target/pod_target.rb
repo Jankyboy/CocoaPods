@@ -203,7 +203,7 @@ module Pod
       end
     end
 
-    # @return [Array<FileAccessor>] The list of all files tracked.
+    # @return [Array<String>] The list of all files tracked.
     #
     def all_files
       Sandbox::FileAccessor.all_files(file_accessors)
@@ -268,6 +268,23 @@ module Pod
       root_spec.module_name
     end
 
+    # @param [Specification] spec the specification
+    #
+    # @return [String] the product basename of the specification's target
+    def product_basename_for_spec(spec)
+      user_specified = build_settings_by_config_for_spec(spec).
+                       each_value.
+                       map { |settings| settings.merged_pod_target_xcconfigs['PRODUCT_NAME'] }.
+                       compact.
+                       uniq
+
+      if user_specified.size == 1
+        user_specified.first
+      else
+        spec_label(spec)
+      end
+    end
+
     # @return [Bool] Whether or not this target should be built.
     #
     # A target should not be built if it has no source files.
@@ -301,15 +318,19 @@ module Pod
       app_specs.map { |app_spec| app_spec.consumer(platform) }
     end
 
-    # @return [Boolean] Whether the target uses Swift code. This excludes source files from non library specs.
+    # Checks whether the target itself plus its specs uses Swift code.
+    # This check excludes source files from non library specs.
+    # Note that if a target does not need to be built (no source code),
+    # we fallback to check whether it indicates a swift version.
+    #
+    # @return [Boolean] Whether the target uses Swift code.
     #
     def uses_swift?
       return @uses_swift if defined? @uses_swift
-      @uses_swift = begin
+      @uses_swift = (!should_build? && !spec_swift_versions.empty?) ||
         file_accessors.select { |a| a.spec.library_specification? }.any? do |file_accessor|
           uses_swift_for_spec?(file_accessor.spec)
         end
-      end
     end
 
     # Checks whether a specification uses Swift or not.
@@ -455,7 +476,7 @@ module Pod
           prefix = Pod::Target::BuildSettings::CONFIGURATION_BUILD_DIR_VARIABLE
           prefix = configuration_build_dir unless file_accessor.spec.test_specification?
           resource_bundle_paths = file_accessor.resource_bundles.keys.map { |name| "#{prefix}/#{name.shellescape}.bundle" }
-          hash[file_accessor.spec.name] = resource_paths + resource_bundle_paths
+          hash[file_accessor.spec.name] = (resource_paths + resource_bundle_paths).map(&:to_s)
         end
       end
     end
@@ -512,7 +533,7 @@ module Pod
     # @return [Specification] The root specification for the target.
     #
     def root_spec
-      specs.first.root
+      @root_spec ||= specs.first.root
     end
 
     # @return [String] The name of the Pod that this target refers to.
@@ -619,13 +640,16 @@ module Pod
       end
     end
 
-    def non_library_spec_label(spec)
+    def spec_label(spec)
       case spec.spec_type
+      when :library then label
       when :test then test_target_label(spec)
       when :app then app_target_label(spec)
       else raise ArgumentError, "Unhandled spec type #{spec.spec_type.inspect} for #{spec.inspect}"
       end
     end
+    # for backwards compatibility
+    alias non_library_spec_label spec_label
 
     # @param  [Specification] spec
     #         The spec to return scheme configuration for.
@@ -645,7 +669,7 @@ module Pod
     # @return [Pathname] The absolute path of the copy resources script for the given spec.
     #
     def copy_resources_script_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-resources.sh"
+      support_files_dir + "#{spec_label(spec)}-resources.sh"
     end
 
     # @param  [Specification] spec
@@ -654,7 +678,7 @@ module Pod
     # @return [Pathname] The absolute path of the copy resources script input file list for the given spec.
     #
     def copy_resources_script_input_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-resources-input-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-resources-input-files.xcfilelist"
     end
 
     # @param  [Specification] spec
@@ -663,7 +687,7 @@ module Pod
     # @return [Pathname] The absolute path of the copy resources script output file list for the given spec.
     #
     def copy_resources_script_output_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-resources-output-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-resources-output-files.xcfilelist"
     end
 
     # @param  [Specification] spec
@@ -672,7 +696,7 @@ module Pod
     # @return [Pathname] The absolute path of the embed frameworks script for the given spec.
     #
     def embed_frameworks_script_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-frameworks.sh"
+      support_files_dir + "#{spec_label(spec)}-frameworks.sh"
     end
 
     # @param  [Specification] spec
@@ -681,7 +705,7 @@ module Pod
     # @return [Pathname] The absolute path of the embed frameworks script input file list for the given spec.
     #
     def embed_frameworks_script_input_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-frameworks-input-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-frameworks-input-files.xcfilelist"
     end
 
     # @param  [Specification] spec
@@ -690,7 +714,7 @@ module Pod
     # @return [Pathname] The absolute path of the embed frameworks script output file list for the given spec.
     #
     def embed_frameworks_script_output_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-frameworks-output-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-frameworks-output-files.xcfilelist"
     end
 
     # @return [Pathname] The absolute path of the copy xcframeworks script.
@@ -721,7 +745,7 @@ module Pod
     # @todo Remove in 2.0
     #
     def prepare_artifacts_script_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-artifacts.sh"
+      support_files_dir + "#{spec_label(spec)}-artifacts.sh"
     end
 
     # @param  [Specification] spec
@@ -734,7 +758,7 @@ module Pod
     # @todo Remove in 2.0
     #
     def prepare_artifacts_script_input_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-artifacts-input-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-artifacts-input-files.xcfilelist"
     end
 
     # @param  [Specification] spec
@@ -747,7 +771,7 @@ module Pod
     # @todo Remove in 2.0
     #
     def prepare_artifacts_script_output_files_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-artifacts-output-files.xcfilelist"
+      support_files_dir + "#{spec_label(spec)}-artifacts-output-files.xcfilelist"
     end
 
     # @return [Pathname] The absolute path of the copy dSYMs script.
@@ -774,7 +798,7 @@ module Pod
     # @return [Pathname] The absolute path of the Info.plist for the given spec.
     #
     def info_plist_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-Info.plist"
+      support_files_dir + "#{spec_label(spec)}-Info.plist"
     end
 
     # @param  [Specification] spec
@@ -783,7 +807,7 @@ module Pod
     # @return [Pathname] the absolute path of the prefix header file for the given spec.
     #
     def prefix_header_path_for_spec(spec)
-      support_files_dir + "#{non_library_spec_label(spec)}-prefix.pch"
+      support_files_dir + "#{spec_label(spec)}-prefix.pch"
     end
 
     # @return [Array<String>] The names of the Pods on which this target
@@ -1054,7 +1078,8 @@ module Pod
     #
     def uses_modular_headers?(only_if_defines_modules = true)
       return false if only_if_defines_modules && !defines_module?
-      spec_consumers.none?(&:header_mappings_dir) && spec_consumers.none?(&:header_dir)
+      return @uses_modular_headers if defined? @uses_modular_headers
+      @uses_modular_headers = spec_consumers.none?(&:header_mappings_dir) && spec_consumers.none?(&:header_dir)
     end
 
     private

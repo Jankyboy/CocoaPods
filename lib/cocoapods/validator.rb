@@ -118,7 +118,7 @@ module Pod
       # Replace default spec with a subspec if asked for
       a_spec = spec
       if spec && @only_subspec
-        subspec_name = @only_subspec.start_with?(spec.root.name) ? @only_subspec : "#{spec.root.name}/#{@only_subspec}"
+        subspec_name = @only_subspec.start_with?("#{spec.root.name}/") ? @only_subspec : "#{spec.root.name}/#{@only_subspec}"
         a_spec = spec.subspec_by_name(subspec_name, true, true)
         @subspec_name = a_spec.name
       end
@@ -712,8 +712,9 @@ module Pod
           if scheme.nil?
             UI.warn "Skipping compilation with `xcodebuild` because target contains no sources.\n".yellow
           else
+            requested_configuration = configuration ? configuration : 'Release'
             if analyze
-              output = xcodebuild('analyze', scheme, 'Release', :deployment_target => deployment_target)
+              output = xcodebuild('analyze', scheme, requested_configuration, :deployment_target => deployment_target)
               find_output = Executable.execute_command('find', [validation_dir, '-name', '*.html'], false)
               if find_output != ''
                 message = 'Static Analysis failed.'
@@ -722,7 +723,7 @@ module Pod
                 error('build_pod', message)
               end
             else
-              output = xcodebuild('build', scheme, configuration ? configuration : 'Release', :deployment_target => deployment_target)
+              output = xcodebuild('build', scheme, requested_configuration, :deployment_target => deployment_target)
             end
             parsed_output = parse_xcodebuild_output(output)
             translate_output_to_linter_messages(parsed_output)

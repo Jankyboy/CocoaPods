@@ -74,7 +74,7 @@ module Pod
               create_test_xcconfig_files(test_native_targets, test_resource_bundle_targets)
               create_app_xcconfig_files(app_native_targets, app_resource_bundle_targets)
 
-              if target.defines_module?
+              if target.defines_module? && !skip_modulemap?(target.library_specs)
                 create_module_map(native_target) do |generator|
                   generator.headers.concat module_map_additional_headers
                 end
@@ -189,6 +189,10 @@ module Pod
           #
           def skip_pch?(specs)
             specs.any? { |spec| spec.root.prefix_header_file.is_a?(FalseClass) }
+          end
+
+          def skip_modulemap?(specs)
+            specs.any? { |spec| spec.module_map.is_a?(FalseClass) }
           end
 
           # True if info.plist generation should be skipped
@@ -377,10 +381,11 @@ module Pod
               name = target.test_target_label(test_spec)
               platform_name = target.platform.name
               language = target.uses_swift_for_spec?(test_spec) ? :swift : :objc
+              product_basename = target.product_basename_for_spec(test_spec)
               embedded_content_contains_swift = target.dependent_targets_for_test_spec(test_spec).any?(&:uses_swift?)
               test_native_target = project.new_target(product_type, name, platform_name,
                                                       target.deployment_target_for_non_library_spec(test_spec), nil,
-                                                      language)
+                                                      language, product_basename)
               test_native_target.product_reference.name = name
 
               target.user_build_configurations.each do |bc_name, type|
@@ -409,7 +414,11 @@ module Pod
                   configuration.build_settings['CODE_SIGNING_ALLOWED'] = 'YES'
                 end
                 # For macOS we do not code sign the XCTest bundle because we do not code sign the frameworks either.
-                configuration.build_settings['CODE_SIGN_IDENTITY'] = '' if target.platform == :osx
+                if target.platform == :osx
+                  configuration.build_settings['CODE_SIGN_IDENTITY'] = ''
+                elsif target.platform == :ios
+                  configuration.build_settings['CODE_SIGN_IDENTITY'] = 'iPhone Developer'
+                end
                 # Ensure swift stdlib gets copied in if needed, even when the target contains no swift files,
                 # because a dependency uses swift
                 configuration.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES' if embedded_content_contains_swift
@@ -467,7 +476,8 @@ module Pod
               app_native_target = AppHostInstaller.new(sandbox, project, platform, subspec_name, spec_name,
                                                        app_target_label, :add_main => false,
                                                                          :add_launchscreen_storyboard => add_launchscreen_storyboard,
-                                                                         :info_plist_entries => info_plist_entries).install!
+                                                                         :info_plist_entries => info_plist_entries,
+                                                                         :product_basename => target.product_basename_for_spec(app_spec)).install!
 
               app_native_target.product_reference.name = app_target_label
               target.user_build_configurations.each do |bc_name, type|
@@ -552,12 +562,8 @@ module Pod
             file_accessors.each_with_object({}) do |file_accessor, hash|
               hash[file_accessor.spec.name] = file_accessor.resource_bundles.map do |bundle_name, paths|
                 label = target.resources_bundle_target_label(bundle_name)
-                resource_bundle_target = project.new_resources_bundle(label, file_accessor.spec_consumer.platform_name)
-                resource_bundle_target.product_reference.tap do |bundle_product|
-                  bundle_file_name = "#{bundle_name}.bundle"
-                  bundle_product.name = bundle_file_name
-                end
-
+                resource_bundle_target = project.new_resources_bundle(label, file_accessor.spec_consumer.platform_name, nil, bundle_name)
+                resource_bundle_target.product_reference.name = label
                 contains_compile_phase_refs = add_resources_to_target(paths, resource_bundle_target)
 
                 target.user_build_configurations.each do |bc_name, type|
@@ -1179,7 +1185,11 @@ module Pod
             def dsym_paths(target)
               dsym_paths = target.framework_paths.values.flatten.reject { |fmwk_path| fmwk_path.dsym_path.nil? }.map(&:dsym_path)
               dsym_paths.concat(target.xcframeworks.values.flatten.flat_map { |xcframework| xcframework_dsyms(xcframework.path) })
-              dsym_paths
+              dsym_paths.map do |dsym_path|
+                dsym_pathname = Pathname(dsym_path)
+                dsym_path = "${PODS_ROOT}/#{dsym_pathname.relative_path_from(target.sandbox.root)}" unless dsym_pathname.relative?
+                dsym_path
+              end
             end
 
             # @param [PodTarget] target the target to be installed

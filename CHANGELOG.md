@@ -8,6 +8,38 @@ To install release candidates run `[sudo] gem install cocoapods --pre`
 
 ##### Enhancements
 
+* Check the podfile sources and plugin sources when printing warnings without explicitly using the master source.  
+  [gonghonglou](https://github.com/gonghonglou)
+  [#10764](https://github.com/CocoaPods/CocoaPods/pull/10764)
+
+* Use relative paths in copy dsyms script.  
+  [Mickey Knox](https://github.com/knox)
+  [#10583](https://github.com/CocoaPods/CocoaPods/pull/10583)
+
+* Use `OpenURI.open_uri` instead.  
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#10597](https://github.com/CocoaPods/CocoaPods/issues/10597)
+
+* Set minimum supported Ruby version to 2.6.  
+  [Igor Makarov](https://github.com/igor-makarov)
+  [#10412](https://github.com/CocoaPods/CocoaPods/pull/10412)
+
+* Improve compatibility with ActiveSupport 6  
+  [Jun Jiang](https://github.com/jasl)
+  [#10364](https://github.com/CocoaPods/CocoaPods/pull/10364)
+
+* Add a post_integrate_hook API  
+  [dcvz](https://github.com/dcvz)
+  [#9935](https://github.com/CocoaPods/CocoaPods/pull/9935)
+
+* Rewrite the only place dependent on `typhoeus`.  
+  [Jun Jiang](https://github.com/jasl), [Igor Makarov](https://github.com/igor-makarov)
+  [#10346](https://github.com/CocoaPods/CocoaPods/pull/10346)
+
+* Add a `--update-sources` option to `pod repo push` so one can ensure sources are up-to-date. 
+  [Elton Gao](https://github.com/gyfelton)
+  [Justin Martin](https://github.com/justinseanmartin)
+  
 * Installing a local (`:path`) pod that defines script phases will no longer
   produce warnings.  
   [Samuel Giddins](https://github.com/segiddins)
@@ -16,7 +48,36 @@ To install release candidates run `[sudo] gem install cocoapods --pre`
   Swift without requiring an empty Swift file be present.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Add flag to ignore prerelease versions when reporting latest version for outdated pods.  
+  [cltnschlosser](https://github.com/cltnschlosser)
+  [#9916](https://github.com/CocoaPods/CocoaPods/pull/9916)
+
+* Add possibility to skip modulemap generation
+  [till0xff](https://github.com/till0xff)
+
+* Add a `--version` option to `pod spec cat` and `pod spec which` for listing the podspec of a specific version  
+  [pietbrauer](https://github.com/pietbrauer)
+  [#10609](https://github.com/CocoaPods/CocoaPods/pull/10609)
+
 ##### Bug Fixes
+
+* Fix lint subspec error when the name of subspec start with the pod name.  
+  [XianpuMeng](https://github.com/XianpuMeng)
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#9906](https://github.com/CocoaPods/CocoaPods/issues/9906)
+
+* Update `ruby-macho` gem version to support 1.x and 2.x.  
+  [Eric Chamberlain](https://github.com/PeqNP)
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#10390](https://github.com/CocoaPods/CocoaPods/issues/10390)
+
+* Respect `--configuration` option when analyzing via `pod lib lint --analyze`. 
+  [Jenn Magder](https://github.com/jmagman)
+  [#10476](https://github.com/CocoaPods/CocoaPods/issues/10476)
+
+* Do not add dependencies to 'Link Binary With Libraries' phase.  
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#10133](https://github.com/CocoaPods/CocoaPods/pull/10133)
 
 * Ensure cache integrity on concurrent installations.  
   [Erik Blomqvist](https://github.com/codiophile)
@@ -26,6 +87,64 @@ To install release candidates run `[sudo] gem install cocoapods --pre`
   [Sebastian Shanus](https://github.com/sebastianv1)
   [#10016](https://github.com/CocoaPods/CocoaPods/pull/10016)
 
+* Correctly detect that a prebuilt pod uses Swift.  
+  [Elton Gao](https://github.com/gyfelton)
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#8649](https://github.com/CocoaPods/CocoaPods/issues/8649)
+
+* fix: ensure cached spec path uniq  
+  [SolaWing](https://github.com/SolaWing)
+  [#10231](https://github.com/CocoaPods/CocoaPods/issues/10231)
+  
+* Set `knownRegions` on generated projects with localized resources to prevent Xcode from re-saving projects to disk.  
+  [Eric Amorde](https://github.com/amorde)
+  [#10290](https://github.com/CocoaPods/CocoaPods/pull/10290)
+
+* Serialize schemes that do not need to be rewritten by Xcode.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+
+## 1.10.1 (2021-01-07)
+
+##### Enhancements
+
+* None.
+
+##### Bug Fixes
+
+* Fix library name in LD `-l` flags for XCFrameworks containing libraries  
+  [Wes Campaigne](https://github.com/Westacular)
+  [#10165](https://github.com/CocoaPods/CocoaPods/issues/10165)
+
+* Fix file extension replacement for resource paths when using static frameworks.  
+  [Dimitris Koutsogiorgas](https://github.com/dnkoutso)
+  [#10206](https://github.com/CocoaPods/CocoaPods/issues/10206)
+
+* Fix processing of xcassets resources when pod target is static framework  
+  [Federico Trimboli](https://github.com/fedetrim)
+  [#10175](https://github.com/CocoaPods/CocoaPods/pull/10175)
+  [#10170](https://github.com/CocoaPods/CocoaPods/issues/10170)
+
+* Fix missing `-ObjC` for static XCFrameworks  
+  [Paul Beusterien](https://github.com/paulb777)
+  [#10234](https://github.com/CocoaPods/CocoaPods/pull/10234)
+
+
+## 1.10.0 (2020-10-20)
+
+##### Enhancements
+
+* None.  
+
+##### Bug Fixes
+
+* Generate the correct LD `-l` flags for XCFrameworks containing libraries  
+  [Wes Campaigne](https://github.com/Westacular)
+  [#10071](https://github.com/CocoaPods/CocoaPods/issues/10071)
+
+* Add support for automatically embedding XCFramework debug symbols for XCFrameworks generated with Xcode 12  
+  [johntmcintosh](https://github.com/johntmcintosh)
+  [#10111](https://github.com/CocoaPods/CocoaPods/issues/10111)
 
 ## 1.10.0.rc.1 (2020-09-15)
 

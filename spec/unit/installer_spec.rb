@@ -380,6 +380,29 @@ module Pod
         UI.warnings.should.be.empty
       end
 
+      it 'does not print a warning if the master specs repo is explicitly used by a plugin' do
+        podfile = Pod::Podfile.new do
+          plugin 'my-plugin'
+          install! 'cocoapods', :integrate_targets => false
+          platform :ios
+        end
+        podfile.stubs(:plugins).returns('my-plugin' => {})
+
+        Pod::HooksManager.register('my-plugin', :source_provider) do |context, _|
+          plugin_source = Source.new(Pod::Installer::MASTER_SPECS_REPO_GIT_URL)
+          plugin_source.stubs(:url).returns(Pod::Installer::MASTER_SPECS_REPO_GIT_URL)
+          context.add_source(plugin_source)
+        end
+
+        @installer = Installer.new(config.sandbox, podfile)
+        @installer.stubs(:ensure_plugins_are_installed!)
+        master_source = Source.new(Pod::Installer::MASTER_SPECS_REPO_GIT_URL)
+        master_source.stubs(:url).returns(Pod::Installer::MASTER_SPECS_REPO_GIT_URL)
+        config.sources_manager.stubs(:all).returns([master_source])
+        @installer.send(:warn_for_removing_git_master_specs_repo)
+        UI.warnings.should.be.empty
+      end
+
       it 'does not print a warning if the master specs repo is not explicitly used but is also not present in the users repo dir' do
         podfile = Pod::Podfile.new do
           install! 'cocoapods', :integrate_targets => false
@@ -930,6 +953,14 @@ module Pod
         Installer::PreInstallHooksContext.expects(:generate).returns(context)
         HooksManager.expects(:run).with(:pre_install, context, Installer::DEFAULT_PLUGINS)
         @installer.send(:run_plugins_pre_install_hooks)
+      end
+
+      it 'runs plugins pre integrate hook' do
+        context = stub
+        Installer::PreIntegrateHooksContext.expects(:generate).returns(context)
+        HooksManager.expects(:run).with(:pre_integrate, context, Installer::DEFAULT_PLUGINS)
+        @installer.expects(:any_plugin_pre_integrate_hooks?).returns(true)
+        @installer.send(:run_plugins_pre_integrate_hooks)
       end
 
       it 'runs plugins post install hook' do
